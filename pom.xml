@@ -27,6 +27,14 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/com.malliina/okclient -->
+		<dependency>
+			<groupId>com.malliina</groupId>
+			<artifactId>okclient_2.13</artifactId>
+			<version>1.19.0</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
