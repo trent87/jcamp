@@ -1,7 +1,6 @@
 package org.trent.jcamp.nio2.outbound.httpclient4;
 
 
-
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -17,6 +16,7 @@ import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
+import org.springframework.util.CollectionUtils;
 import org.trent.jcamp.nio2.filter.HeaderHttpResponseFilter;
 import org.trent.jcamp.nio2.filter.HttpRequestFilter;
 import org.trent.jcamp.nio2.filter.HttpResponseFilter;
@@ -35,7 +35,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 public class HttpOutboundHandler {
-    
+
     private CloseableHttpAsyncClient httpclient;
     private ExecutorService proxyService;
     private List<String> backendUrls;
@@ -54,33 +54,37 @@ public class HttpOutboundHandler {
         proxyService = new ThreadPoolExecutor(cores, cores,
                 keepAliveTime, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(queueSize),
                 new io.github.kimmking.gateway.outbound.httpclient4.NamedThreadFactory("proxyService"), handler);
-        
+
         IOReactorConfig ioConfig = IOReactorConfig.custom()
                 .setConnectTimeout(1000)
                 .setSoTimeout(1000)
                 .setIoThreadCount(cores)
                 .setRcvBufSize(32 * 1024)
                 .build();
-        
+
         httpclient = HttpAsyncClients.custom().setMaxConnTotal(40)
                 .setMaxConnPerRoute(8)
                 .setDefaultIOReactorConfig(ioConfig)
-                .setKeepAliveStrategy((response,context) -> 6000)
+                .setKeepAliveStrategy((response, context) -> 6000)
                 .build();
         httpclient.start();
     }
 
     private String formatUrl(String backend) {
-        return backend.endsWith("/")?backend.substring(0,backend.length()-1):backend;
+        return backend.endsWith("/") ? backend.substring(0, backend.length() - 1) : backend;
     }
-    
-    public void handle(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, HttpRequestFilter filter) {
+
+    public void handle(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, List<HttpRequestFilter> filters) {
         String backendUrl = router.route(this.backendUrls);
         final String url = backendUrl + fullRequest.uri();
-        filter.filter(fullRequest, ctx);
-        proxyService.submit(()->fetchGet(fullRequest, ctx, url));
+        if (!CollectionUtils.isEmpty(filters)) {
+            filters.forEach(filter -> {
+                filter.filter(fullRequest, ctx);
+            });
+        }
+        proxyService.submit(() -> fetchGet(fullRequest, ctx, url));
     }
-    
+
     private void fetchGet(final FullHttpRequest inbound, final ChannelHandlerContext ctx, final String url) {
         final HttpGet httpGet = new HttpGet(url);
         //httpGet.setHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_CLOSE);
@@ -95,23 +99,23 @@ public class HttpOutboundHandler {
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
-                    
+
                 }
             }
-            
+
             @Override
             public void failed(final Exception ex) {
                 httpGet.abort();
                 ex.printStackTrace();
             }
-            
+
             @Override
             public void cancelled() {
                 httpGet.abort();
             }
         });
     }
-    
+
     private void handleResponse(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, final HttpResponse endpointResponse) throws Exception {
         FullHttpResponse response = null;
         try {
@@ -119,12 +123,12 @@ public class HttpOutboundHandler {
 //            response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(value.getBytes("UTF-8")));
 //            response.headers().set("Content-Type", "application/json");
 //            response.headers().setInt("Content-Length", response.content().readableBytes());
-    
-    
+
+
             byte[] body = EntityUtils.toByteArray(endpointResponse.getEntity());
 //            System.out.println(new String(body));
 //            System.out.println(body.length);
-    
+
             response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(body));
 
             response.headers().set("Content-Type", "application/json");
@@ -136,7 +140,7 @@ public class HttpOutboundHandler {
 //                //response.headers().set(e.getName(),e.getValue());
 //                System.out.println(e.getName() + " => " + e.getValue());
 //            } 
-        
+
         } catch (Exception e) {
             e.printStackTrace();
             response = new DefaultFullHttpResponse(HTTP_1_1, NO_CONTENT);
@@ -153,13 +157,13 @@ public class HttpOutboundHandler {
             ctx.flush();
             //ctx.close();
         }
-        
+
     }
-    
+
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         cause.printStackTrace();
         ctx.close();
     }
-    
-    
+
+
 }

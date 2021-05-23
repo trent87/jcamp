@@ -9,8 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.trent.jcamp.nio2.filter.HeaderHttpRequestFilter;
 import org.trent.jcamp.nio2.filter.HttpRequestFilter;
+import org.trent.jcamp.nio2.filter.biz.ProxyBizFilter;
 import org.trent.jcamp.nio2.outbound.httpclient4.HttpOutboundHandler;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class HttpInboundHandler extends ChannelInboundHandlerAdapter {
@@ -18,7 +20,12 @@ public class HttpInboundHandler extends ChannelInboundHandlerAdapter {
     private static Logger logger = LoggerFactory.getLogger(HttpInboundHandler.class);
     private final List<String> proxyServer;
     private HttpOutboundHandler handler;
-    private HttpRequestFilter filter = new HeaderHttpRequestFilter();
+
+    private HttpRequestFilter filter = new HeaderHttpRequestFilter();//
+    /**
+     * 允许多个过滤器构成的过滤器链
+     */
+    private List<HttpRequestFilter> filters = Arrays.asList(new HeaderHttpRequestFilter(), ProxyBizFilter.newInstance());
     
     public HttpInboundHandler(List<String> proxyServer) {
         this.proxyServer = proxyServer;
@@ -41,7 +48,7 @@ public class HttpInboundHandler extends ChannelInboundHandlerAdapter {
 //                handlerTest(fullRequest, ctx);
 //            }
     
-            handler.handle(fullRequest, ctx, filter);
+            handler.handle(fullRequest, ctx, filters);
     
         } catch(Exception e) {
             e.printStackTrace();

@@ -1,4 +1,4 @@
-package io.github.kimmking.gateway.inbound;
+package org.trent.jcamp.nio2.inbound;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
